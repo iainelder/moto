@@ -12,7 +12,7 @@ from moto.organizations.models import (
 
 import boto3
 import json
-import sure  # noqa # pylint: disable=unused-import
+import sure  # type: ignore[import] # noqa # pylint: disable=unused-import
 from botocore.exceptions import ClientError
 import pytest
 

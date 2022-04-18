@@ -27,6 +27,8 @@ lint:
 	black --check moto/ tests/
 	@echo "Running pylint..."
 	pylint -j 0 moto tests
+	@echo "Running mypy..."
+	mypy .
 
 format:
 	black moto/ tests/
