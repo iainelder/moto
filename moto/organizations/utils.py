@@ -96,7 +96,7 @@ def make_random_policy_id() -> str:
     return "p-" + "".join(random.choice(CHARSET) for x in range(POLICY_ID_SIZE))
 
 
-def fullmatch(regex: AnyStr, s: AnyStr, flags: int =0) -> Optional[Match[AnyStr]]:
+def fullmatch(regex: AnyStr, s: AnyStr, flags: int = 0) -> Optional[Match[AnyStr]]:
     # flags type should really be _FlagsType, but you can't reference TypeShed
     # types at runtime.
     # https://github.com/python/typeshed/blob/3ab250eec828a15d5649053e3613e16c0369263d/stdlib/re.pyi#L150

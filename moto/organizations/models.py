@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import re
 import json
 
@@ -32,6 +32,9 @@ from mypy_boto3_organizations.type_defs import (
     TagTypeDef,
     RootTypeDef,
     PolicyTypeDef,
+    DelegatedServiceTypeDef,
+    DelegatedAdministratorTypeDef,
+    EnabledServicePrincipalTypeDef,
 )
 from mypy_boto3_organizations.literals import (
     OrganizationFeatureSetType,
@@ -41,8 +44,8 @@ from mypy_boto3_organizations.literals import (
 )
 from typing import Dict, Literal, List, Any, cast, Union
 
-class FakeOrganization(BaseModel):
 
+class FakeOrganization(BaseModel):
     def __init__(self, feature_set: OrganizationFeatureSetType) -> None:
         self.id = utils.make_random_org_id()
         self.root_id = utils.make_random_root_id()
@@ -87,7 +90,7 @@ class FakeAccount(BaseModel):
         self.id = utils.make_random_account_id()
         self.name = kwargs["AccountName"]
         self.email = kwargs["Email"]
-        self.create_time = datetime.datetime.utcnow()
+        self.create_time = datetime.utcnow()
         self.status: AccountStatusType = "ACTIVE"
         self.joined_method: AccountJoinedMethodType = "CREATED"
         self.parent_id = organization.root_id
@@ -101,15 +104,16 @@ class FakeAccount(BaseModel):
         )
 
     @property
-    def create_account_status(self) -> Dict[Literal["CreateAccountStatus"], CreateAccountStatusTypeDef]:
+    def create_account_status(
+        self,
+    ) -> Dict[Literal["CreateAccountStatus"], CreateAccountStatusTypeDef]:
         return {
             "CreateAccountStatus": {
                 "Id": self.create_account_status_id,
                 "AccountName": self.name,
                 "State": "SUCCEEDED",
-                # TODO: Confirm correct type here. float or datetime?
-                "RequestedTimestamp": unix_time(self.create_time),
-                "CompletedTimestamp": unix_time(self.create_time),
+                "RequestedTimestamp": _unix_time_cast_to_datetime(self.create_time),
+                "CompletedTimestamp": _unix_time_cast_to_datetime(self.create_time),
                 "AccountId": self.id,
             }
         }
@@ -135,7 +139,7 @@ class FakeAccount(BaseModel):
             "Name": self.name,
             "Status": self.status,
             "JoinedMethod": self.joined_method,
-            "JoinedTimestamp": unix_time(self.create_time),
+            "JoinedTimestamp": _unix_time_cast_to_datetime(self.create_time),
         }
 
 
@@ -158,7 +162,9 @@ class FakeOrganizationalUnit(BaseModel):
             self.master_account_id, self.organization_id, self.id
         )
 
-    def describe(self) -> Dict[Literal["OrganizationalUnit"], OrganizationalUnitTypeDef]:
+    def describe(
+        self,
+    ) -> Dict[Literal["OrganizationalUnit"], OrganizationalUnitTypeDef]:
         return {
             "OrganizationalUnit": {"Id": self.id, "Arn": self.arn, "Name": self.name}
         }
@@ -182,6 +188,7 @@ class FakeRoot(BaseModel):
         self._arn_format = utils.ROOT_ARN_FORMAT
         self.attached_policies: List[str] = []
         self.tags = {tag["Key"]: tag["Value"] for tag in kwargs.get("Tags", [])}
+        self.parent_id = None
 
     @property
     def arn(self) -> str:
@@ -233,7 +240,9 @@ class FakePolicy(BaseModel):
         self.aws_managed = False
         self.organization_id = organization.id
         self.master_account_id = organization.master_account_id
-        self.attachments: List[Union[FakeAccount, FakeOrganizationalUnit, FakeRoot]] = []
+        self.attachments: List[
+            Union[FakeAccount, FakeOrganizationalUnit, FakeRoot]
+        ] = []
 
         if not FakePolicy.supported_policy_type(self.type):
             raise InvalidInputException("You specified an invalid value.")
@@ -299,23 +308,24 @@ class FakeServiceAccess(BaseModel):
         "tagpolicies.tag.amazonaws.com",
     ]
 
-    def __init__(self, **kwargs):
-        if not self.trusted_service(kwargs["ServicePrincipal"]):
+    def __init__(self, **kwargs: Any) -> None:
+        service_principal = cast(str, kwargs["ServicePrincipal"])
+        if not self.trusted_service(service_principal):
             raise InvalidInputException(
                 "You specified an unrecognized service principal."
             )
 
-        self.service_principal = kwargs["ServicePrincipal"]
-        self.date_enabled = datetime.datetime.utcnow()
+        self.service_principal = service_principal
+        self.date_enabled = datetime.utcnow()
 
-    def describe(self):
+    def describe(self) -> EnabledServicePrincipalTypeDef:
         return {
             "ServicePrincipal": self.service_principal,
-            "DateEnabled": unix_time(self.date_enabled),
+            "DateEnabled": _unix_time_cast_to_datetime(self.date_enabled),
         }
 
     @staticmethod
-    def trusted_service(service_principal):
+    def trusted_service(service_principal: str) -> bool:
         return service_principal in FakeServiceAccess.TRUSTED_SERVICES
 
 
@@ -331,12 +341,12 @@ class FakeDelegatedAdministrator(BaseModel):
         "ssm.amazonaws.com",
     ]
 
-    def __init__(self, account):
+    def __init__(self, account: FakeAccount) -> None:
         self.account = account
-        self.enabled_date = datetime.datetime.utcnow()
-        self.services = {}
+        self.enabled_date = datetime.utcnow()
+        self.services: Dict[str, DelegatedServiceTypeDef] = {}
 
-    def add_service_principal(self, service_principal):
+    def add_service_principal(self, service_principal: str) -> None:
         if service_principal in self.services:
             raise AccountAlreadyRegisteredException
 
@@ -347,10 +357,10 @@ class FakeDelegatedAdministrator(BaseModel):
 
         self.services[service_principal] = {
             "ServicePrincipal": service_principal,
-            "DelegationEnabledDate": unix_time(datetime.datetime.utcnow()),
+            "DelegationEnabledDate": _unix_time_cast_to_datetime(datetime.utcnow()),
         }
 
-    def remove_service_principal(self, service_principal):
+    def remove_service_principal(self, service_principal: str) -> None:
         if service_principal not in self.services:
             raise InvalidInputException(
                 "You specified an unrecognized service principal."
@@ -358,14 +368,15 @@ class FakeDelegatedAdministrator(BaseModel):
 
         self.services.pop(service_principal)
 
-    def describe(self):
-        admin = self.account.describe()
-        admin["DelegationEnabledDate"] = unix_time(self.enabled_date)
-
+    # Casts from float to datetime allow the use of boto3 TypeDefs.
+    # Each AWS API return each timestamp as a float, which boto3 converts to a datetime.
+    def describe(self) -> DelegatedAdministratorTypeDef:
+        admin = cast(DelegatedAdministratorTypeDef, self.account.describe())
+        admin["DelegationEnabledDate"] = _unix_time_cast_to_datetime(self.enabled_date)
         return admin
 
     @staticmethod
-    def supported_service(service_principal):
+    def supported_service(service_principal: str) -> bool:
         return service_principal in FakeDelegatedAdministrator.SUPPORTED_SERVICES
 
 
@@ -950,6 +961,18 @@ class OrganizationsBackend(BaseBackend):
         for policy in account.attached_policies:
             policy.attachments.remove(account)
         self.accounts.remove(account)
+
+
+def _unix_time_cast_to_datetime(dt: datetime) -> datetime:
+    """Converts to float so that the HTTP response is formatted correctly. Casts
+    to datetime to allow the use of boto3 TypeDefs.
+
+    The AWS API returns each timestamp as a float, which boto3 converts to a datetime.
+
+    It would be awesome to be able to return datetimes from the service backend
+    and have the responses handle the conversion. Perhaps it can be done with
+    a custome JSONEncoder."""
+    return cast(datetime, unix_time(dt))
 
 
 organizations_backend = OrganizationsBackend()
