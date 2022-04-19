@@ -23,15 +23,33 @@ from moto.organizations.exceptions import (
 from moto.utilities.paginator import paginate
 from .utils import PAGINATION_MODEL
 
+from mypy_boto3_organizations.type_defs import (
+    OrganizationTypeDef,
+    PolicyTypeSummaryTypeDef,
+    CreateAccountStatusTypeDef,
+    AccountTypeDef,
+    OrganizationalUnitTypeDef,
+    TagTypeDef,
+    RootTypeDef,
+    PolicyTypeDef,
+)
+from mypy_boto3_organizations.literals import (
+    OrganizationFeatureSetType,
+    AccountStatusType,
+    AccountJoinedMethodType,
+    PolicyTypeType,
+)
+from typing import Dict, Literal, List, Any, cast, Union
 
 class FakeOrganization(BaseModel):
-    def __init__(self, feature_set):
+
+    def __init__(self, feature_set: OrganizationFeatureSetType) -> None:
         self.id = utils.make_random_org_id()
         self.root_id = utils.make_random_root_id()
         self.feature_set = feature_set
         self.master_account_id = utils.MASTER_ACCOUNT_ID
         self.master_account_email = utils.MASTER_ACCOUNT_EMAIL
-        self.available_policy_types = [
+        self.available_policy_types: List[PolicyTypeSummaryTypeDef] = [
             # This policy is available, but not applied
             # User should use enable_policy_type/disable_policy_type to do anything else
             # This field is deprecated in AWS, but we'll return it for old time's sake
@@ -39,14 +57,14 @@ class FakeOrganization(BaseModel):
         ]
 
     @property
-    def arn(self):
+    def arn(self) -> str:
         return utils.ORGANIZATION_ARN_FORMAT.format(self.master_account_id, self.id)
 
     @property
-    def master_account_arn(self):
+    def master_account_arn(self) -> str:
         return utils.MASTER_ACCOUNT_ARN_FORMAT.format(self.master_account_id, self.id)
 
-    def describe(self):
+    def describe(self) -> Dict[Literal["Organization"], OrganizationTypeDef]:
         return {
             "Organization": {
                 "Id": self.id,
@@ -61,7 +79,7 @@ class FakeOrganization(BaseModel):
 
 
 class FakeAccount(BaseModel):
-    def __init__(self, organization, **kwargs):
+    def __init__(self, organization: FakeOrganization, **kwargs: Any):
         self.type = "ACCOUNT"
         self.organization_id = organization.id
         self.master_account_id = organization.master_account_id
@@ -70,25 +88,26 @@ class FakeAccount(BaseModel):
         self.name = kwargs["AccountName"]
         self.email = kwargs["Email"]
         self.create_time = datetime.datetime.utcnow()
-        self.status = "ACTIVE"
-        self.joined_method = "CREATED"
+        self.status: AccountStatusType = "ACTIVE"
+        self.joined_method: AccountJoinedMethodType = "CREATED"
         self.parent_id = organization.root_id
-        self.attached_policies = []
+        self.attached_policies: List[str] = []
         self.tags = {tag["Key"]: tag["Value"] for tag in kwargs.get("Tags", [])}
 
     @property
-    def arn(self):
+    def arn(self) -> str:
         return utils.ACCOUNT_ARN_FORMAT.format(
             self.master_account_id, self.organization_id, self.id
         )
 
     @property
-    def create_account_status(self):
+    def create_account_status(self) -> Dict[Literal["CreateAccountStatus"], CreateAccountStatusTypeDef]:
         return {
             "CreateAccountStatus": {
                 "Id": self.create_account_status_id,
                 "AccountName": self.name,
                 "State": "SUCCEEDED",
+                # TODO: Confirm correct type here. float or datetime?
                 "RequestedTimestamp": unix_time(self.create_time),
                 "CompletedTimestamp": unix_time(self.create_time),
                 "AccountId": self.id,
@@ -108,7 +127,7 @@ class FakeAccount(BaseModel):
             }
         }
 
-    def describe(self):
+    def describe(self) -> AccountTypeDef:
         return {
             "Id": self.id,
             "Arn": self.arn,
@@ -121,30 +140,31 @@ class FakeAccount(BaseModel):
 
 
 class FakeOrganizationalUnit(BaseModel):
-    def __init__(self, organization, **kwargs):
+    def __init__(self, organization: FakeOrganization, **kwargs: Any) -> None:
         self.type = "ORGANIZATIONAL_UNIT"
         self.organization_id = organization.id
         self.master_account_id = organization.master_account_id
         self.id = utils.make_random_ou_id(organization.root_id)
-        self.name = kwargs.get("Name")
-        self.parent_id = kwargs.get("ParentId")
+        self.name = cast(str, kwargs.get("Name"))
+        self.parent_id = cast(str, kwargs.get("ParentId"))
         self._arn_format = utils.OU_ARN_FORMAT
-        self.attached_policies = []
-        self.tags = {tag["Key"]: tag["Value"] for tag in kwargs.get("Tags", [])}
+        self.attached_policies: List[str] = []
+        tags = cast(List[TagTypeDef], kwargs.get("Tags", []))
+        self.tags = {tag["Key"]: tag["Value"] for tag in tags}
 
     @property
-    def arn(self):
+    def arn(self) -> str:
         return self._arn_format.format(
             self.master_account_id, self.organization_id, self.id
         )
 
-    def describe(self):
+    def describe(self) -> Dict[Literal["OrganizationalUnit"], OrganizationalUnitTypeDef]:
         return {
             "OrganizationalUnit": {"Id": self.id, "Arn": self.arn, "Name": self.name}
         }
 
 
-class FakeRoot(FakeOrganizationalUnit):
+class FakeRoot(BaseModel):
     SUPPORTED_POLICY_TYPES = [
         "AISERVICES_OPT_OUT_POLICY",
         "BACKUP_POLICY",
@@ -152,17 +172,24 @@ class FakeRoot(FakeOrganizationalUnit):
         "TAG_POLICY",
     ]
 
-    def __init__(self, organization, **kwargs):
-        super().__init__(organization, **kwargs)
+    def __init__(self, organization: FakeOrganization, **kwargs: Any):
         self.type = "ROOT"
+        self.organization_id = organization.id
+        self.master_account_id = organization.master_account_id
         self.id = organization.root_id
         self.name = "Root"
-        self.policy_types = []
+        self.policy_types: List[PolicyTypeSummaryTypeDef] = []
         self._arn_format = utils.ROOT_ARN_FORMAT
-        self.attached_policies = []
+        self.attached_policies: List[str] = []
         self.tags = {tag["Key"]: tag["Value"] for tag in kwargs.get("Tags", [])}
 
-    def describe(self):
+    @property
+    def arn(self) -> str:
+        return self._arn_format.format(
+            self.master_account_id, self.organization_id, self.id
+        )
+
+    def describe(self) -> RootTypeDef:
         return {
             "Id": self.id,
             "Arn": self.arn,
@@ -170,7 +197,7 @@ class FakeRoot(FakeOrganizationalUnit):
             "PolicyTypes": self.policy_types,
         }
 
-    def add_policy_type(self, policy_type):
+    def add_policy_type(self, policy_type: PolicyTypeType) -> None:
         if policy_type not in self.SUPPORTED_POLICY_TYPES:
             raise InvalidInputException("You specified an invalid value.")
 
@@ -179,7 +206,7 @@ class FakeRoot(FakeOrganizationalUnit):
 
         self.policy_types.append({"Type": policy_type, "Status": "ENABLED"})
 
-    def remove_policy_type(self, policy_type):
+    def remove_policy_type(self, policy_type: PolicyTypeType) -> None:
         if not FakePolicy.supported_policy_type(policy_type):
             raise InvalidInputException("You specified an invalid value.")
 
@@ -197,16 +224,16 @@ class FakePolicy(BaseModel):
         "TAG_POLICY",
     ]
 
-    def __init__(self, organization, **kwargs):
-        self.content = kwargs.get("Content")
-        self.description = kwargs.get("Description")
-        self.name = kwargs.get("Name")
-        self.type = kwargs.get("Type")
+    def __init__(self, organization: FakeOrganization, **kwargs: Any):
+        self.content = cast(str, kwargs.get("Content"))
+        self.description = cast(str, kwargs.get("Description"))
+        self.name = cast(str, kwargs.get("Name"))
+        self.type = cast(PolicyTypeType, kwargs.get("Type"))
         self.id = utils.make_random_policy_id()
         self.aws_managed = False
         self.organization_id = organization.id
         self.master_account_id = organization.master_account_id
-        self.attachments = []
+        self.attachments: List[Union[FakeAccount, FakeOrganizationalUnit, FakeRoot]] = []
 
         if not FakePolicy.supported_policy_type(self.type):
             raise InvalidInputException("You specified an invalid value.")
@@ -220,12 +247,12 @@ class FakePolicy(BaseModel):
             )
 
     @property
-    def arn(self):
+    def arn(self) -> str:
         return self._arn_format.format(
             self.master_account_id, self.organization_id, self.id
         )
 
-    def describe(self):
+    def describe(self) -> Dict[Literal["Policy"], PolicyTypeDef]:
         return {
             "Policy": {
                 "PolicySummary": {
@@ -241,7 +268,7 @@ class FakePolicy(BaseModel):
         }
 
     @staticmethod
-    def supported_policy_type(policy_type):
+    def supported_policy_type(policy_type: PolicyTypeType) -> bool:
         return policy_type in FakePolicy.SUPPORTED_POLICY_TYPES
 
 

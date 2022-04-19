@@ -1,3 +1,4 @@
+from typing import Optional
 from functools import wraps
 
 import binascii
@@ -191,7 +192,7 @@ def str_to_rfc_1123_datetime(value):
     return datetime.datetime.strptime(value, RFC1123)
 
 
-def unix_time(dt=None):
+def unix_time(dt: Optional[datetime.datetime]=None):
     dt = dt or datetime.datetime.utcnow()
     epoch = datetime.datetime.utcfromtimestamp(0)
     delta = dt - epoch
