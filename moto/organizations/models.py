@@ -23,36 +23,20 @@ from moto.organizations.exceptions import (
 from moto.utilities.paginator import paginate
 from .utils import PAGINATION_MODEL
 
-from mypy_boto3_organizations.type_defs import (
-    OrganizationTypeDef,
-    PolicyTypeSummaryTypeDef,
-    CreateAccountStatusTypeDef,
-    AccountTypeDef,
-    OrganizationalUnitTypeDef,
-    TagTypeDef,
-    RootTypeDef,
-    PolicyTypeDef,
-    DelegatedServiceTypeDef,
-    DelegatedAdministratorTypeDef,
-    EnabledServicePrincipalTypeDef,
-)
-from mypy_boto3_organizations.literals import (
-    OrganizationFeatureSetType,
-    AccountStatusType,
-    AccountJoinedMethodType,
-    PolicyTypeType,
-)
-from typing import Dict, Literal, List, Any, cast, Union
+import moto.organizations.types as ot # org types
+import mypy_boto3_organizations.literals as ol # org literals
+
+from typing import Dict, Literal, List, Any, cast, Union, Optional
 
 
 class FakeOrganization(BaseModel):
-    def __init__(self, feature_set: OrganizationFeatureSetType) -> None:
+    def __init__(self, feature_set: ol.OrganizationFeatureSetType) -> None:
         self.id = utils.make_random_org_id()
         self.root_id = utils.make_random_root_id()
         self.feature_set = feature_set
         self.master_account_id = utils.MASTER_ACCOUNT_ID
         self.master_account_email = utils.MASTER_ACCOUNT_EMAIL
-        self.available_policy_types: List[PolicyTypeSummaryTypeDef] = [
+        self.available_policy_types: List[ot.PolicyTypeSummaryTypeDef] = [
             # This policy is available, but not applied
             # User should use enable_policy_type/disable_policy_type to do anything else
             # This field is deprecated in AWS, but we'll return it for old time's sake
@@ -67,17 +51,15 @@ class FakeOrganization(BaseModel):
     def master_account_arn(self) -> str:
         return utils.MASTER_ACCOUNT_ARN_FORMAT.format(self.master_account_id, self.id)
 
-    def describe(self) -> Dict[Literal["Organization"], OrganizationTypeDef]:
+    def describe(self) -> ot.OrganizationTypeDef:
         return {
-            "Organization": {
-                "Id": self.id,
-                "Arn": self.arn,
-                "FeatureSet": self.feature_set,
-                "MasterAccountArn": self.master_account_arn,
-                "MasterAccountId": self.master_account_id,
-                "MasterAccountEmail": self.master_account_email,
-                "AvailablePolicyTypes": self.available_policy_types,
-            }
+            "Id": self.id,
+            "Arn": self.arn,
+            "FeatureSet": self.feature_set,
+            "MasterAccountArn": self.master_account_arn,
+            "MasterAccountId": self.master_account_id,
+            "MasterAccountEmail": self.master_account_email,
+            "AvailablePolicyTypes": self.available_policy_types,
         }
 
 
@@ -91,8 +73,8 @@ class FakeAccount(BaseModel):
         self.name = kwargs["AccountName"]
         self.email = kwargs["Email"]
         self.create_time = datetime.utcnow()
-        self.status: AccountStatusType = "ACTIVE"
-        self.joined_method: AccountJoinedMethodType = "CREATED"
+        self.status: ol.AccountStatusType = "ACTIVE"
+        self.joined_method: ol.AccountJoinedMethodType = "CREATED"
         self.parent_id = organization.root_id
         self.attached_policies: List[str] = []
         self.tags = {tag["Key"]: tag["Value"] for tag in kwargs.get("Tags", [])}
@@ -106,7 +88,7 @@ class FakeAccount(BaseModel):
     @property
     def create_account_status(
         self,
-    ) -> Dict[Literal["CreateAccountStatus"], CreateAccountStatusTypeDef]:
+    ) -> Dict[Literal["CreateAccountStatus"], ot.CreateAccountStatusTypeDef]:
         return {
             "CreateAccountStatus": {
                 "Id": self.create_account_status_id,
@@ -131,7 +113,7 @@ class FakeAccount(BaseModel):
             }
         }
 
-    def describe(self) -> AccountTypeDef:
+    def describe(self) -> ot.AccountTypeDef:
         return {
             "Id": self.id,
             "Arn": self.arn,
@@ -153,7 +135,7 @@ class FakeOrganizationalUnit(BaseModel):
         self.parent_id = cast(str, kwargs.get("ParentId"))
         self._arn_format = utils.OU_ARN_FORMAT
         self.attached_policies: List[str] = []
-        tags = cast(List[TagTypeDef], kwargs.get("Tags", []))
+        tags = cast(List[ot.TagTypeDef], kwargs.get("Tags", []))
         self.tags = {tag["Key"]: tag["Value"] for tag in tags}
 
     @property
@@ -164,7 +146,7 @@ class FakeOrganizationalUnit(BaseModel):
 
     def describe(
         self,
-    ) -> Dict[Literal["OrganizationalUnit"], OrganizationalUnitTypeDef]:
+    ) -> Dict[Literal["OrganizationalUnit"], ot.OrganizationalUnitTypeDef]:
         return {
             "OrganizationalUnit": {"Id": self.id, "Arn": self.arn, "Name": self.name}
         }
@@ -184,7 +166,7 @@ class FakeRoot(BaseModel):
         self.master_account_id = organization.master_account_id
         self.id = organization.root_id
         self.name = "Root"
-        self.policy_types: List[PolicyTypeSummaryTypeDef] = []
+        self.policy_types: List[ot.PolicyTypeSummaryTypeDef] = []
         self._arn_format = utils.ROOT_ARN_FORMAT
         self.attached_policies: List[str] = []
         self.tags = {tag["Key"]: tag["Value"] for tag in kwargs.get("Tags", [])}
@@ -196,7 +178,7 @@ class FakeRoot(BaseModel):
             self.master_account_id, self.organization_id, self.id
         )
 
-    def describe(self) -> RootTypeDef:
+    def describe(self) -> ot.RootTypeDef:
         return {
             "Id": self.id,
             "Arn": self.arn,
@@ -204,7 +186,7 @@ class FakeRoot(BaseModel):
             "PolicyTypes": self.policy_types,
         }
 
-    def add_policy_type(self, policy_type: PolicyTypeType) -> None:
+    def add_policy_type(self, policy_type: ol.PolicyTypeType) -> None:
         if policy_type not in self.SUPPORTED_POLICY_TYPES:
             raise InvalidInputException("You specified an invalid value.")
 
@@ -213,7 +195,7 @@ class FakeRoot(BaseModel):
 
         self.policy_types.append({"Type": policy_type, "Status": "ENABLED"})
 
-    def remove_policy_type(self, policy_type: PolicyTypeType) -> None:
+    def remove_policy_type(self, policy_type: ol.PolicyTypeType) -> None:
         if not FakePolicy.supported_policy_type(policy_type):
             raise InvalidInputException("You specified an invalid value.")
 
@@ -235,7 +217,7 @@ class FakePolicy(BaseModel):
         self.content = cast(str, kwargs.get("Content"))
         self.description = cast(str, kwargs.get("Description"))
         self.name = cast(str, kwargs.get("Name"))
-        self.type = cast(PolicyTypeType, kwargs.get("Type"))
+        self.type = cast(ol.PolicyTypeType, kwargs.get("Type"))
         self.id = utils.make_random_policy_id()
         self.aws_managed = False
         self.organization_id = organization.id
@@ -261,7 +243,7 @@ class FakePolicy(BaseModel):
             self.master_account_id, self.organization_id, self.id
         )
 
-    def describe(self) -> Dict[Literal["Policy"], PolicyTypeDef]:
+    def describe(self) -> Dict[Literal["Policy"], ot.PolicyTypeDef]:
         return {
             "Policy": {
                 "PolicySummary": {
@@ -277,7 +259,7 @@ class FakePolicy(BaseModel):
         }
 
     @staticmethod
-    def supported_policy_type(policy_type: PolicyTypeType) -> bool:
+    def supported_policy_type(policy_type: ol.PolicyTypeType) -> bool:
         return policy_type in FakePolicy.SUPPORTED_POLICY_TYPES
 
 
@@ -318,7 +300,7 @@ class FakeServiceAccess(BaseModel):
         self.service_principal = service_principal
         self.date_enabled = datetime.utcnow()
 
-    def describe(self) -> EnabledServicePrincipalTypeDef:
+    def describe(self) -> ot.EnabledServicePrincipalTypeDef:
         return {
             "ServicePrincipal": self.service_principal,
             "DateEnabled": _unix_time_cast_to_datetime(self.date_enabled),
@@ -344,7 +326,7 @@ class FakeDelegatedAdministrator(BaseModel):
     def __init__(self, account: FakeAccount) -> None:
         self.account = account
         self.enabled_date = datetime.utcnow()
-        self.services: Dict[str, DelegatedServiceTypeDef] = {}
+        self.services: Dict[str, ot.DelegatedServiceTypeDef] = {}
 
     def add_service_principal(self, service_principal: str) -> None:
         if service_principal in self.services:
@@ -370,8 +352,8 @@ class FakeDelegatedAdministrator(BaseModel):
 
     # Casts from float to datetime allow the use of boto3 TypeDefs.
     # Each AWS API return each timestamp as a float, which boto3 converts to a datetime.
-    def describe(self) -> DelegatedAdministratorTypeDef:
-        admin = cast(DelegatedAdministratorTypeDef, self.account.describe())
+    def describe(self) -> ot.DelegatedAdministratorTypeDef:
+        admin = cast(ot.DelegatedAdministratorTypeDef, self.account.describe())
         admin["DelegationEnabledDate"] = _unix_time_cast_to_datetime(self.enabled_date)
         return admin
 
@@ -379,27 +361,28 @@ class FakeDelegatedAdministrator(BaseModel):
     def supported_service(service_principal: str) -> bool:
         return service_principal in FakeDelegatedAdministrator.SUPPORTED_SERVICES
 
+Container = Union[FakeOrganizationalUnit, FakeRoot]
 
 class OrganizationsBackend(BaseBackend):
-    def __init__(self):
+    def __init__(self) -> None:
         self._reset()
 
-    def _reset(self):
-        self.org = None
-        self.accounts = []
-        self.ou = []
-        self.policies = []
-        self.services = []
-        self.admins = []
+    def _reset(self) -> None:
+        self.org: Optional[FakeOrganization] = None
+        self.accounts: List[FakeAccount] = []
+        self.ou: List[Container]= []
+        self.policies: List[FakePolicy] = []
+        self.services: List[FakeServiceAccess] = []
+        self.admins: List[FakeDelegatedAdministrator] = []
 
-    def _get_root_by_id(self, root_id):
+    def _get_root_by_id(self, root_id: str) -> FakeRoot:
         root = next((ou for ou in self.ou if ou.id == root_id), None)
         if not root:
             raise RootNotFoundException
 
-        return root
+        return cast(FakeRoot, root)
 
-    def create_organization(self, **kwargs):
+    def create_organization(self, **kwargs: Any) -> ot.CreateOrganizationResponseTypeDef:
         self.org = FakeOrganization(kwargs["FeatureSet"])
         root_ou = FakeRoot(self.org)
         self.ou.append(root_ou)
@@ -425,7 +408,7 @@ class OrganizationsBackend(BaseBackend):
         self.policies.append(default_policy)
         self.attach_policy(PolicyId=default_policy.id, TargetId=root_ou.id)
         self.attach_policy(PolicyId=default_policy.id, TargetId=master_account.id)
-        return self.org.describe()
+        return {"Organization": self.org.describe()}
 
     def describe_organization(self):
         if not self.org:
@@ -651,7 +634,7 @@ class OrganizationsBackend(BaseBackend):
         policy.content = kwargs.get("Content", policy.content)
         return policy.describe()
 
-    def attach_policy(self, **kwargs):
+    def attach_policy(self, **kwargs: Any) -> None:
         policy = self.get_policy_by_id(kwargs["PolicyId"])
         if re.compile(utils.ROOT_ID_REGEX).match(kwargs["TargetId"]) or re.compile(
             utils.OU_ID_REGEX
