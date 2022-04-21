@@ -1,10 +1,12 @@
+# Organizations
+
 Generate types without ResourceMetadata keys:
 
-```
+```bash
 cat ~/tmp/moto/lib/python3.8/site-packages/mypy_boto3_organizations/type_defs.py \
 | grep -v '"ResponseMetadata": "ResponseMetadataTypeDef",' \
 | sed -e 's/from .literals /from mypy_boto3_organizations.literals /' \
-> moto/organizations/types.py
+> moto/organizations/type_defs.py
 ```
 
 TypedDict accepts only dict literals, and you can't define subtractive types.

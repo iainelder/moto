@@ -23,8 +23,8 @@ from moto.organizations.exceptions import (
 from moto.utilities.paginator import paginate
 from .utils import PAGINATION_MODEL
 
-import moto.organizations.types as ot # org types
-import mypy_boto3_organizations.literals as ol # org literals
+import moto.organizations.type_defs as ot  # org types
+import mypy_boto3_organizations.literals as ol  # org literals
 
 from typing import Dict, Literal, List, Any, cast, Union, Optional
 
@@ -361,7 +361,9 @@ class FakeDelegatedAdministrator(BaseModel):
     def supported_service(service_principal: str) -> bool:
         return service_principal in FakeDelegatedAdministrator.SUPPORTED_SERVICES
 
+
 Container = Union[FakeOrganizationalUnit, FakeRoot]
+
 
 class OrganizationsBackend(BaseBackend):
     def __init__(self) -> None:
@@ -370,7 +372,7 @@ class OrganizationsBackend(BaseBackend):
     def _reset(self) -> None:
         self.org: Optional[FakeOrganization] = None
         self.accounts: List[FakeAccount] = []
-        self.ou: List[Container]= []
+        self.ou: List[Container] = []
         self.policies: List[FakePolicy] = []
         self.services: List[FakeServiceAccess] = []
         self.admins: List[FakeDelegatedAdministrator] = []
@@ -382,7 +384,9 @@ class OrganizationsBackend(BaseBackend):
 
         return cast(FakeRoot, root)
 
-    def create_organization(self, **kwargs: Any) -> ot.CreateOrganizationResponseTypeDef:
+    def create_organization(
+        self, **kwargs: Any
+    ) -> ot.CreateOrganizationResponseTypeDef:
         self.org = FakeOrganization(kwargs["FeatureSet"])
         root_ou = FakeRoot(self.org)
         self.ou.append(root_ou)
@@ -410,12 +414,12 @@ class OrganizationsBackend(BaseBackend):
         self.attach_policy(PolicyId=default_policy.id, TargetId=master_account.id)
         return {"Organization": self.org.describe()}
 
-    def describe_organization(self):
+    def describe_organization(self) -> ot.DescribeOrganizationResponseTypeDef:
         if not self.org:
             raise AWSOrganizationsNotInUseException
-        return self.org.describe()
+        return {"Organization": self.org.describe()}
 
-    def delete_organization(self):
+    def delete_organization(self) -> None:
         if [account for account in self.accounts if account.name != "master"]:
             raise RESTError(
                 "OrganizationNotEmptyException",

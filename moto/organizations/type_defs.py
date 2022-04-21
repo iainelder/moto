@@ -251,7 +251,8 @@ _OptionalCreateAccountRequestRequestTypeDef = TypedDict(
 
 
 class CreateAccountRequestRequestTypeDef(
-    _RequiredCreateAccountRequestRequestTypeDef, _OptionalCreateAccountRequestRequestTypeDef
+    _RequiredCreateAccountRequestRequestTypeDef,
+    _OptionalCreateAccountRequestRequestTypeDef,
 ):
     pass
 
@@ -374,7 +375,8 @@ _OptionalCreatePolicyRequestRequestTypeDef = TypedDict(
 
 
 class CreatePolicyRequestRequestTypeDef(
-    _RequiredCreatePolicyRequestRequestTypeDef, _OptionalCreatePolicyRequestRequestTypeDef
+    _RequiredCreatePolicyRequestRequestTypeDef,
+    _OptionalCreatePolicyRequestRequestTypeDef,
 ):
     pass
 
@@ -847,7 +849,8 @@ _OptionalListChildrenRequestRequestTypeDef = TypedDict(
 
 
 class ListChildrenRequestRequestTypeDef(
-    _RequiredListChildrenRequestRequestTypeDef, _OptionalListChildrenRequestRequestTypeDef
+    _RequiredListChildrenRequestRequestTypeDef,
+    _OptionalListChildrenRequestRequestTypeDef,
 ):
     pass
 
@@ -887,13 +890,15 @@ ListCreateAccountStatusResponseTypeDef = TypedDict(
     },
 )
 
-ListDelegatedAdministratorsRequestListDelegatedAdministratorsPaginateTypeDef = TypedDict(
-    "ListDelegatedAdministratorsRequestListDelegatedAdministratorsPaginateTypeDef",
-    {
-        "ServicePrincipal": str,
-        "PaginationConfig": "PaginatorConfigTypeDef",
-    },
-    total=False,
+ListDelegatedAdministratorsRequestListDelegatedAdministratorsPaginateTypeDef = (
+    TypedDict(
+        "ListDelegatedAdministratorsRequestListDelegatedAdministratorsPaginateTypeDef",
+        {
+            "ServicePrincipal": str,
+            "PaginationConfig": "PaginatorConfigTypeDef",
+        },
+        total=False,
+    )
 )
 
 ListDelegatedAdministratorsRequestRequestTypeDef = TypedDict(
@@ -1220,7 +1225,8 @@ _OptionalListPoliciesRequestRequestTypeDef = TypedDict(
 
 
 class ListPoliciesRequestRequestTypeDef(
-    _RequiredListPoliciesRequestRequestTypeDef, _OptionalListPoliciesRequestRequestTypeDef
+    _RequiredListPoliciesRequestRequestTypeDef,
+    _OptionalListPoliciesRequestRequestTypeDef,
 ):
     pass
 
@@ -1565,7 +1571,8 @@ _OptionalUpdatePolicyRequestRequestTypeDef = TypedDict(
 
 
 class UpdatePolicyRequestRequestTypeDef(
-    _RequiredUpdatePolicyRequestRequestTypeDef, _OptionalUpdatePolicyRequestRequestTypeDef
+    _RequiredUpdatePolicyRequestRequestTypeDef,
+    _OptionalUpdatePolicyRequestRequestTypeDef,
 ):
     pass
 
