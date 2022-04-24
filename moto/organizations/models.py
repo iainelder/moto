@@ -437,11 +437,11 @@ class OrganizationsBackend(BaseBackend):
         for ou in self.ou:
             if ou.name == kwargs["Name"]:
                 raise DuplicateOrganizationalUnitException
-        ou = self.get_organizational_unit_by_id(kwargs["OrganizationalUnitId"])
+        ou = self._get_organizational_unit_by_id(kwargs["OrganizationalUnitId"])
         ou.name = kwargs["Name"]
         return {"OrganizationalUnit": ou.describe()}
 
-    def get_organizational_unit_by_id(self, ou_id: str) -> FakeOrganizationalUnit:
+    def _get_organizational_unit_by_id(self, ou_id: str) -> FakeOrganizationalUnit:
         ou = next((ou for ou in self.ou if ou.id == ou_id), None)
         if ou is None:
             raise RESTError(
@@ -450,18 +450,18 @@ class OrganizationsBackend(BaseBackend):
             )
         return cast(FakeOrganizationalUnit, ou)
 
-    def validate_parent_id(self, parent_id):
+    def validate_parent_id(self, parent_id: str) -> str:
         try:
-            self.get_organizational_unit_by_id(parent_id)
+            self._get_organizational_unit_by_id(parent_id)
         except RESTError:
             raise RESTError(
                 "ParentNotFoundException", "You specified parent that doesn't exist."
             )
         return parent_id
 
-    def describe_organizational_unit(self, **kwargs):
-        ou = self.get_organizational_unit_by_id(kwargs["OrganizationalUnitId"])
-        return ou.describe()
+    def describe_organizational_unit(self, **kwargs: Any) -> ot.DescribeOrganizationalUnitResponseTypeDef:
+        ou = self._get_organizational_unit_by_id(kwargs["OrganizationalUnitId"])
+        return {"OrganizationalUnit": ou.describe()}
 
     def list_organizational_units_for_parent(self, **kwargs):
         parent_id = self.validate_parent_id(kwargs["ParentId"])
@@ -569,7 +569,7 @@ class OrganizationsBackend(BaseBackend):
         if re.compile(r"[0-9]{12}").match(kwargs["ChildId"]):
             child_object = self.get_account_by_id(kwargs["ChildId"])
         else:
-            child_object = self.get_organizational_unit_by_id(kwargs["ChildId"])
+            child_object = self._get_organizational_unit_by_id(kwargs["ChildId"])
         return dict(
             Parents=[
                 {"Id": ou.id, "Type": ou.type}
