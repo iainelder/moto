@@ -144,12 +144,8 @@ class FakeOrganizationalUnit(BaseModel):
             self.master_account_id, self.organization_id, self.id
         )
 
-    def describe(
-        self,
-    ) -> Dict[Literal["OrganizationalUnit"], ot.OrganizationalUnitTypeDef]:
-        return {
-            "OrganizationalUnit": {"Id": self.id, "Arn": self.arn, "Name": self.name}
-        }
+    def describe(self) -> ot.OrganizationalUnitTypeDef:
+        return {"Id": self.id, "Arn": self.arn, "Name": self.name}
 
 
 class FakeRoot(BaseModel):
@@ -430,28 +426,29 @@ class OrganizationsBackend(BaseBackend):
     def list_roots(self) -> ot.ListRootsResponseTypeDef:
         return dict(Roots=[ou.describe() for ou in self.ou if isinstance(ou, FakeRoot)])
 
-    def create_organizational_unit(self, **kwargs):
-        new_ou = FakeOrganizationalUnit(self.org, **kwargs)
+    def create_organizational_unit(self, **kwargs: Any) -> ot.CreateOrganizationalUnitResponseTypeDef:
+        # TODO: Arg type needs to be FakeOrganization, but it can sometimes be None.
+        new_ou = FakeOrganizationalUnit(self.org, **kwargs)  # type: ignore[arg-type]
         self.ou.append(new_ou)
         self.attach_policy(PolicyId=utils.DEFAULT_POLICY_ID, TargetId=new_ou.id)
-        return new_ou.describe()
+        return {"OrganizationalUnit": new_ou.describe()}
 
-    def update_organizational_unit(self, **kwargs):
+    def update_organizational_unit(self, **kwargs: Any) -> ot.UpdateOrganizationalUnitResponseTypeDef:
         for ou in self.ou:
             if ou.name == kwargs["Name"]:
                 raise DuplicateOrganizationalUnitException
         ou = self.get_organizational_unit_by_id(kwargs["OrganizationalUnitId"])
         ou.name = kwargs["Name"]
-        return ou.describe()
+        return {"OrganizationalUnit": ou.describe()}
 
-    def get_organizational_unit_by_id(self, ou_id):
+    def get_organizational_unit_by_id(self, ou_id: str) -> FakeOrganizationalUnit:
         ou = next((ou for ou in self.ou if ou.id == ou_id), None)
         if ou is None:
             raise RESTError(
                 "OrganizationalUnitNotFoundException",
                 "You specified an organizational unit that doesn't exist.",
             )
-        return ou
+        return cast(FakeOrganizationalUnit, ou)
 
     def validate_parent_id(self, parent_id):
         try:
