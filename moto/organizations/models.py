@@ -426,9 +426,8 @@ class OrganizationsBackend(BaseBackend):
                 "To delete an organization you must first remove all member accounts (except the master).",
             )
         self._reset()
-        return {}
 
-    def list_roots(self):
+    def list_roots(self) -> ot.ListRootsResponseTypeDef:
         return dict(Roots=[ou.describe() for ou in self.ou if isinstance(ou, FakeRoot)])
 
     def create_organizational_unit(self, **kwargs):
