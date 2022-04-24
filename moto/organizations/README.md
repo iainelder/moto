@@ -1,13 +1,15 @@
 # Organizations
 
-Generate types without ResourceMetadata keys:
+Generate types without ResourceMetadata and NextToken keys:
 
 ```bash
-cat ~/tmp/moto/lib/python3.8/site-packages/mypy_boto3_organizations/type_defs.py \
-| grep -v '"ResponseMetadata": "ResponseMetadataTypeDef",' \
-| sed -e 's/from .literals /from mypy_boto3_organizations.literals /' \
-> moto/organizations/type_defs.py
+python moto/organizations/write_type_defs.py
 ```
+
+References:
+
+* https://stackoverflow.com/questions/11303225/how-to-remove-multiple-indexes-from-a-list-at-the-same-time
+* https://stackoverflow.com/questions/57652922/is-it-possible-to-call-black-as-an-api
 
 TypedDict accepts only dict literals, and you can't define subtractive types.
 
