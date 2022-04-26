@@ -20,3 +20,13 @@ package and strip them of the ResponseMetadata keys.
 
 This should be run whenever the version of boto3 changes. Or whenever the module
 needs new types.
+
+Test that the backend types match the boto3 API:
+
+```bash
+pytest moto/organizations/check_types.py
+```
+
+References:
+
+* https://medium.com/opsops/deepdive-into-pytest-parametrization-cb21665c05b9
