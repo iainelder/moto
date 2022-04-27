@@ -68,7 +68,7 @@ jobs:
         pip install -r requirements-dev.txt
     - name: Lint with flake8
       run:
-        make lint
+        make lint aws_service=organizations
 
   test:
     name: Unit test

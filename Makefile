@@ -19,14 +19,15 @@ init:
 	@pip install -r requirements-dev.txt
 
 lint:
+	$(eval aws_service ?= *)
 	@echo "Running flake8..."
-	flake8 moto tests
+	flake8 moto/$(aws_service) tests/test_$(aws_service) tests/terraformtests
 	@echo "Running black... "
 	$(eval black_version := $(shell grep -oP "(?<=black==).*" requirements-dev.txt))
 	@echo "(Make sure you have black-$(black_version) installed, as other versions will produce different results)"
-	black --check moto/ tests/
+	black --check moto/$(aws_service) tests/test_$(aws_service) tests/terraformtests
 	@echo "Running pylint..."
-	pylint -j 0 moto tests
+	pylint -j 0 moto/$(aws_service) tests/test_$(aws_service) tests/terraformtests
 	@echo "Running mypy..."
 	mypy .
 
