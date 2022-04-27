@@ -26,7 +26,7 @@ from .utils import PAGINATION_MODEL
 import moto.organizations.type_defs as ot  # org types
 import mypy_boto3_organizations.literals as ol  # org literals
 
-from typing import Dict, Literal, List, Any, cast, Union, Optional
+from typing import Dict, Literal, List, Any, cast, Union, Optional, Final
 
 
 class FakeOrganization(BaseModel):
@@ -65,18 +65,18 @@ class FakeOrganization(BaseModel):
 
 class FakeAccount(BaseModel):
     def __init__(self, organization: FakeOrganization, **kwargs: Any):
-        self.type = "ACCOUNT"
+        self.type: Final = "ACCOUNT"
         self.organization_id = organization.id
         self.master_account_id = organization.master_account_id
         self.create_account_status_id = utils.make_random_create_account_status_id()
         self.id = utils.make_random_account_id()
-        self.name = kwargs["AccountName"]
+        self.name: str = kwargs["AccountName"]
         self.email = kwargs["Email"]
         self.create_time = datetime.utcnow()
         self.status: ol.AccountStatusType = "ACTIVE"
         self.joined_method: ol.AccountJoinedMethodType = "CREATED"
         self.parent_id = organization.root_id
-        self.attached_policies: List[str] = []
+        self.attached_policies: List[FakePolicy] = []
         self.tags = {tag["Key"]: tag["Value"] for tag in kwargs.get("Tags", [])}
 
     @property
@@ -125,14 +125,14 @@ class FakeAccount(BaseModel):
 
 class FakeOrganizationalUnit(BaseModel):
     def __init__(self, organization: FakeOrganization, **kwargs: Any) -> None:
-        self.type = "ORGANIZATIONAL_UNIT"
+        self.type: Final = "ORGANIZATIONAL_UNIT"
         self.organization_id = organization.id
         self.master_account_id = organization.master_account_id
         self.id = utils.make_random_ou_id(organization.root_id)
         self.name = cast(str, kwargs.get("Name"))
         self.parent_id = cast(str, kwargs.get("ParentId"))
         self._arn_format = utils.OU_ARN_FORMAT
-        self.attached_policies: List[str] = []
+        self.attached_policies: List[FakePolicy] = []
         tags = cast(List[ot.TagTypeDef], kwargs.get("Tags", []))
         self.tags = {tag["Key"]: tag["Value"] for tag in tags}
 
@@ -155,14 +155,14 @@ class FakeRoot(BaseModel):
     ]
 
     def __init__(self, organization: FakeOrganization, **kwargs: Any):
-        self.type = "ROOT"
+        self.type: Final = "ROOT"
         self.organization_id = organization.id
         self.master_account_id = organization.master_account_id
         self.id = organization.root_id
         self.name = "Root"
         self.policy_types: List[ot.PolicyTypeSummaryTypeDef] = []
         self._arn_format = utils.ROOT_ARN_FORMAT
-        self.attached_policies: List[str] = []
+        self.attached_policies: List[FakePolicy] = []
         self.tags = {tag["Key"]: tag["Value"] for tag in kwargs.get("Tags", [])}
         self.parent_id = None
 
@@ -237,20 +237,29 @@ class FakePolicy(BaseModel):
             self.master_account_id, self.organization_id, self.id
         )
 
-    def describe(self) -> Dict[Literal["Policy"], ot.PolicyTypeDef]:
+    def describe(self) -> ot.PolicyTypeDef:
         return {
-            "Policy": {
-                "PolicySummary": {
-                    "Id": self.id,
-                    "Arn": self.arn,
-                    "Name": self.name,
-                    "Description": self.description,
-                    "Type": self.type,
-                    "AwsManaged": self.aws_managed,
-                },
-                "Content": self.content,
-            }
+            "PolicySummary": {
+                "Id": self.id,
+                "Arn": self.arn,
+                "Name": self.name,
+                "Description": self.description,
+                "Type": self.type,
+                "AwsManaged": self.aws_managed,
+            },
+            "Content": self.content,
         }
+    
+    def list_targets(self) -> List[ot.PolicyTargetSummaryTypeDef]:
+        return [
+            {
+                "TargetId": target.id,
+                "Arn": target.arn,
+                "Name": target.name,
+                "Type": target.type,
+            }
+            for target in self.attachments
+        ]
 
     @staticmethod
     def supported_policy_type(policy_type: ol.PolicyTypeType) -> bool:
@@ -357,6 +366,7 @@ class FakeDelegatedAdministrator(BaseModel):
 
 
 Container = Union[FakeOrganizationalUnit, FakeRoot]
+TaggableThing = Union[FakeRoot, FakeOrganizationalUnit, FakeAccount, FakePolicy]
 
 
 # TODO: Replace all `*kwargs: Any` with the real names and types of the args
@@ -569,7 +579,7 @@ class OrganizationsBackend(BaseBackend):
         accounts = sorted(accounts, key=lambda x: x["JoinedTimestamp"])
         return accounts
 
-    def list_accounts_for_parent(self, **kwargs: Any):
+    def list_accounts_for_parent(self, **kwargs: Any) -> ot.ListAccountsForParentResponseTypeDef:
         parent_id = self.validate_parent_id(kwargs["ParentId"])
         return dict(
             Accounts=[
@@ -579,14 +589,15 @@ class OrganizationsBackend(BaseBackend):
             ]
         )
 
-    def move_account(self, **kwargs):
+    def move_account(self, **kwargs: Any) -> None:
         new_parent_id = self.validate_parent_id(kwargs["DestinationParentId"])
         self.validate_parent_id(kwargs["SourceParentId"])
         account = self.get_account_by_id(kwargs["AccountId"])
         index = self.accounts.index(account)
         self.accounts[index].parent_id = new_parent_id
 
-    def list_parents(self, **kwargs):
+    def list_parents(self, **kwargs: Any) -> ot.ListParentsResponseTypeDef:
+        child_object: Union[FakeOrganizationalUnit, FakeAccount]
         if re.compile(r"[0-9]{12}").match(kwargs["ChildId"]):
             child_object = self.get_account_by_id(kwargs["ChildId"])
         else:
@@ -599,7 +610,9 @@ class OrganizationsBackend(BaseBackend):
             ]
         )
 
-    def list_children(self, **kwargs):
+    def list_children(self, **kwargs: Any) -> ot.ListChildrenResponseTypeDef:
+        # TODO: The type here is funky because the internal structure is weird.
+        obj_list: Any
         parent_id = self.validate_parent_id(kwargs["ParentId"])
         if kwargs["ChildType"] == "ACCOUNT":
             obj_list = self.accounts
@@ -615,15 +628,16 @@ class OrganizationsBackend(BaseBackend):
             ]
         )
 
-    def create_policy(self, **kwargs):
-        new_policy = FakePolicy(self.org, **kwargs)
+    def create_policy(self, **kwargs: Any) -> ot.CreatePolicyResponseTypeDef:
+        # FakePolicy takes a FakeOrganizations by self.org can be None
+        new_policy = FakePolicy(self.org, **kwargs)  # type: ignore[arg-type]
         for policy in self.policies:
             if kwargs["Name"] == policy.name:
                 raise DuplicatePolicyException
         self.policies.append(new_policy)
-        return new_policy.describe()
+        return {"Policy": new_policy.describe()}
 
-    def describe_policy(self, **kwargs):
+    def describe_policy(self, **kwargs: Any) -> ot.DescribePolicyResponseTypeDef:
         if re.compile(utils.POLICY_ID_REGEX).match(kwargs["PolicyId"]):
             policy = next(
                 (p for p in self.policies if p.id == kwargs["PolicyId"]), None
@@ -635,9 +649,9 @@ class OrganizationsBackend(BaseBackend):
                 )
         else:
             raise InvalidInputException("You specified an invalid value.")
-        return policy.describe()
+        return {"Policy": policy.describe()}
 
-    def get_policy_by_id(self, policy_id):
+    def get_policy_by_id(self, policy_id: str) -> FakePolicy:
         policy = next(
             (policy for policy in self.policies if policy.id == policy_id), None
         )
@@ -648,12 +662,12 @@ class OrganizationsBackend(BaseBackend):
             )
         return policy
 
-    def update_policy(self, **kwargs):
+    def update_policy(self, **kwargs: Any) -> ot.UpdatePolicyResponseTypeDef:
         policy = self.get_policy_by_id(kwargs["PolicyId"])
         policy.name = kwargs.get("Name", policy.name)
         policy.description = kwargs.get("Description", policy.description)
         policy.content = kwargs.get("Content", policy.content)
-        return policy.describe()
+        return {"Policy": policy.describe()}
 
     def attach_policy(self, **kwargs: Any) -> None:
         policy = self.get_policy_by_id(kwargs["PolicyId"])
@@ -683,12 +697,12 @@ class OrganizationsBackend(BaseBackend):
         else:
             raise InvalidInputException("You specified an invalid value.")
 
-    def list_policies(self):
+    def list_policies(self) -> ot.ListPoliciesResponseTypeDef:
         return dict(
-            Policies=[p.describe()["Policy"]["PolicySummary"] for p in self.policies]
+            Policies=[p.describe()["PolicySummary"] for p in self.policies]
         )
 
-    def delete_policy(self, **kwargs):
+    def delete_policy(self, **kwargs: Any) -> None:
         for idx, policy in enumerate(self.policies):
             if policy.id == kwargs["PolicyId"]:
                 if self.list_targets_for_policy(PolicyId=policy.id)["Targets"]:
@@ -703,9 +717,10 @@ class OrganizationsBackend(BaseBackend):
             "We can't find a policy with the PolicyId that you specified.",
         )
 
-    def list_policies_for_target(self, **kwargs):
+    def list_policies_for_target(self, **kwargs: Any) -> ot.ListPoliciesForTargetResponseTypeDef:
         _filter = kwargs["Filter"]
-
+        # TODO: The type is any because I can't make sense of the implementation.
+        obj: Any
         if re.match(utils.ROOT_ID_REGEX, kwargs["TargetId"]):
             obj = next((ou for ou in self.ou if ou.id == kwargs["TargetId"]), None)
             if obj is None:
@@ -734,13 +749,18 @@ class OrganizationsBackend(BaseBackend):
 
         return dict(
             Policies=[
-                p.describe()["Policy"]["PolicySummary"]
+                p.describe()["PolicySummary"]
                 for p in obj.attached_policies
                 if p.type == _filter
             ]
         )
 
-    def _get_resource_for_tagging(self, resource_id):
+    # TODO: Define a taggable protocol. Use typing_extensions to support Python
+    # pre-3.8.
+    #
+    # TODO: Rewrite this without utils.fullmatch.
+    def _get_resource_for_tagging(self, resource_id: str) -> TaggableThing:
+        resource: Union[TaggableThing, None]
         if utils.fullmatch(
             re.compile(utils.OU_ID_REGEX), resource_id
         ) or utils.fullmatch(utils.ROOT_ID_REGEX, resource_id):
@@ -759,7 +779,7 @@ class OrganizationsBackend(BaseBackend):
 
         return resource
 
-    def list_targets_for_policy(self, **kwargs):
+    def list_targets_for_policy(self, **kwargs: Any) -> ot.ListTargetsForPolicyResponseTypeDef:
         if re.compile(utils.POLICY_ID_REGEX).match(kwargs["PolicyId"]):
             policy = next(
                 (p for p in self.policies if p.id == kwargs["PolicyId"]), None
@@ -771,13 +791,9 @@ class OrganizationsBackend(BaseBackend):
                 )
         else:
             raise InvalidInputException("You specified an invalid value.")
-        objects = [
-            {"TargetId": obj.id, "Arn": obj.arn, "Name": obj.name, "Type": obj.type}
-            for obj in policy.attachments
-        ]
-        return dict(Targets=objects)
+        return {"Targets": policy.list_targets()}
 
-    def tag_resource(self, **kwargs):
+    def tag_resource(self, **kwargs: Any) -> None:
         resource = self._get_resource_for_tagging(kwargs["ResourceId"])
         new_tags = {tag["Key"]: tag["Value"] for tag in kwargs["Tags"]}
         resource.tags.update(new_tags)
