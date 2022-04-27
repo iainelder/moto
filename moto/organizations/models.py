@@ -86,29 +86,27 @@ class FakeAccount(BaseModel):
         )
 
     @property
-    def create_account_status(
-        self,
-    ) -> Dict[Literal["CreateAccountStatus"], ot.CreateAccountStatusTypeDef]:
+    def create_account_status(self) -> ot.CreateAccountStatusTypeDef:
         return {
-            "CreateAccountStatus": {
-                "Id": self.create_account_status_id,
-                "AccountName": self.name,
-                "State": "SUCCEEDED",
-                "RequestedTimestamp": _unix_time_cast_to_datetime(self.create_time),
-                "CompletedTimestamp": _unix_time_cast_to_datetime(self.create_time),
-                "AccountId": self.id,
-            }
+            "Id": self.create_account_status_id,
+            "AccountName": self.name,
+            "State": "SUCCEEDED",
+            "RequestedTimestamp": _unix_time_cast_to_datetime(self.create_time),
+            "CompletedTimestamp": _unix_time_cast_to_datetime(self.create_time),
+            "AccountId": self.id,
         }
 
+    # TODO: This is an incorrect incorrect implementation and so remains
+    # untyped. It will be replaced in another PR.
     @property
-    def close_account_status(self):
+    def close_account_status(self) -> Any:
         return {
             "CloseAccountStatus": {
                 "Id": self.create_account_status_id,
                 "AccountName": self.name,
                 "State": "SUCCEEDED",
-                "RequestedTimestamp": unix_time(datetime.datetime.utcnow()),
-                "CompletedTimestamp": unix_time(datetime.datetime.utcnow()),
+                "RequestedTimestamp": unix_time(datetime.utcnow()),
+                "CompletedTimestamp": unix_time(datetime.utcnow()),
                 "AccountId": self.id,
             }
         }
@@ -360,7 +358,12 @@ class FakeDelegatedAdministrator(BaseModel):
 
 Container = Union[FakeOrganizationalUnit, FakeRoot]
 
-
+# TODO: Replace all `*kwargs: Any` with the real names and types of the args
+# accepted. Before doing this find out how the backend is invoked to check
+# compatibility.
+#
+# TODO: Be consistent in the use of dict literals for responses. Replace any use
+# of dict().
 class OrganizationsBackend(BaseBackend):
     def __init__(self) -> None:
         self._reset()
@@ -463,7 +466,7 @@ class OrganizationsBackend(BaseBackend):
         ou = self._get_organizational_unit_by_id(kwargs["OrganizationalUnitId"])
         return {"OrganizationalUnit": ou.describe()}
 
-    def list_organizational_units_for_parent(self, **kwargs):
+    def list_organizational_units_for_parent(self, **kwargs: Any) -> ot.ListOrganizationalUnitsForParentResponseTypeDef:
         parent_id = self.validate_parent_id(kwargs["ParentId"])
         return dict(
             OrganizationalUnits=[
@@ -473,13 +476,16 @@ class OrganizationsBackend(BaseBackend):
             ]
         )
 
-    def create_account(self, **kwargs):
-        new_account = FakeAccount(self.org, **kwargs)
+    def create_account(self, **kwargs: Any) -> ot.CreateAccountResponseTypeDef:
+        # TODO: FakeAccount expects a FakeOrganization byt self.org may be None.
+        new_account = FakeAccount(self.org, **kwargs)  # type: ignore[arg-type]
         self.accounts.append(new_account)
         self.attach_policy(PolicyId=utils.DEFAULT_POLICY_ID, TargetId=new_account.id)
-        return new_account.create_account_status
+        return {"CreateAccountStatus": new_account.create_account_status}
 
-    def close_account(self, **kwargs):
+    # TODO: This is an incorrect implementation and so remains untyped. It will
+    # be replaced in another PR.
+    def close_account(self, **kwargs: Any) -> Any:
         for account_index in range(len(self.accounts)):
             if kwargs["AccountId"] == self.accounts[account_index].id:
                 closed_account_status = self.accounts[
@@ -490,7 +496,12 @@ class OrganizationsBackend(BaseBackend):
 
         raise AccountNotFoundException
 
-    def get_account_by_id(self, account_id):
+    # TODO: "private" method should be indicated as such with a leading
+    # underscore.
+    # TODO: This method should either be used consistently by all methods that
+    # look up accounts by ID. Or it should be replaced with a dictionary of
+    # account ID [str] to FakeAccount. 
+    def get_account_by_id(self, account_id: str) -> FakeAccount:
         account = next(
             (account for account in self.accounts if account.id == account_id), None
         )
@@ -498,7 +509,9 @@ class OrganizationsBackend(BaseBackend):
             raise AccountNotFoundException
         return account
 
-    def get_account_by_attr(self, attr, value):
+    # TODO: This is used only in describe_create_account_status. Inline it.
+    # TODO: Remains untyped because of hasattr.
+    def get_account_by_attr(self, attr: str, value: Any) -> Any:
         account = next(
             (
                 account
@@ -511,25 +524,29 @@ class OrganizationsBackend(BaseBackend):
             raise AccountNotFoundException
         return account
 
-    def describe_account(self, **kwargs):
+    def describe_account(self, **kwargs: Any) -> ot.DescribeAccountResponseTypeDef:
         account = self.get_account_by_id(kwargs["AccountId"])
         return dict(Account=account.describe())
 
-    def describe_create_account_status(self, **kwargs):
-        account = self.get_account_by_attr(
-            "create_account_status_id", kwargs["CreateAccountRequestId"]
+    def describe_create_account_status(self, **kwargs: Any) -> ot.DescribeCreateAccountStatusResponseTypeDef:
+        account = cast(
+            FakeAccount,
+            self.get_account_by_attr(
+                "create_account_status_id", kwargs["CreateAccountRequestId"]
+            ),
         )
-        return account.create_account_status
+        return {"CreateAccountStatus": account.create_account_status}
 
-    def list_create_account_status(self, **kwargs):
+    # TODO: This looks like it implements pagination. That should be handled by
+    # the @paginate decorator.
+    def list_create_account_status(self, **kwargs: Any) -> ot.ListCreateAccountStatusResponseTypeDef:
         requested_states = kwargs.get("States")
         if not requested_states:
             requested_states = ["IN_PROGRESS", "SUCCEEDED", "FAILED"]
         accountStatuses = []
         for account in self.accounts:
-            create_account_status = account.create_account_status["CreateAccountStatus"]
-            if create_account_status["State"] in requested_states:
-                accountStatuses.append(create_account_status)
+            if account.create_account_status["State"] in requested_states:
+                accountStatuses.append(account.create_account_status)
         token = kwargs.get("NextToken")
         if token:
             start = int(token)
@@ -540,15 +557,18 @@ class OrganizationsBackend(BaseBackend):
         next_token = None
         if max_results and len(accountStatuses) > (start + max_results):
             next_token = str(len(accounts_resp))
-        return dict(CreateAccountStatuses=accounts_resp, NextToken=next_token)
+        return dict(CreateAccountStatuses=accounts_resp, NextToken=next_token)  # type: ignore[typeddict-item]
 
-    @paginate(pagination_model=PAGINATION_MODEL)
-    def list_accounts(self):
+    # TODO: Can I make the paginator typed? We might have to implement all the
+    # paginator types.
+    # TODO: The paginator forces this function to return the wrong type.
+    @paginate(pagination_model=PAGINATION_MODEL)  # type: ignore[no-untyped-call,misc]
+    def list_accounts(self) -> List[ot.AccountTypeDef]:
         accounts = [account.describe() for account in self.accounts]
         accounts = sorted(accounts, key=lambda x: x["JoinedTimestamp"])
         return accounts
 
-    def list_accounts_for_parent(self, **kwargs):
+    def list_accounts_for_parent(self, **kwargs: Any):
         parent_id = self.validate_parent_id(kwargs["ParentId"])
         return dict(
             Accounts=[
