@@ -1231,6 +1231,7 @@ def test_tag_resource_errors():
         "You specified a target that doesn't exist."
     )
 
+
 # TODO: Delete tests of internal helper method.
 def test__get_resource_for_tagging_existing_root():
     org = FakeOrganization("ALL")

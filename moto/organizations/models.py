@@ -26,7 +26,7 @@ from .utils import PAGINATION_MODEL
 import moto.organizations.type_defs as ot  # org types
 import mypy_boto3_organizations.literals as ol  # org literals
 
-from typing import Dict, Literal, List, Any, cast, Union, Optional, Final
+from typing import Dict, List, Any, cast, Union, Optional, Final
 
 
 class FakeOrganization(BaseModel):
@@ -249,7 +249,7 @@ class FakePolicy(BaseModel):
             },
             "Content": self.content,
         }
-    
+
     def list_targets(self) -> List[ot.PolicyTargetSummaryTypeDef]:
         return [
             {
@@ -440,14 +440,18 @@ class OrganizationsBackend(BaseBackend):
     def list_roots(self) -> ot.ListRootsResponseTypeDef:
         return dict(Roots=[ou.describe() for ou in self.ou if isinstance(ou, FakeRoot)])
 
-    def create_organizational_unit(self, **kwargs: Any) -> ot.CreateOrganizationalUnitResponseTypeDef:
+    def create_organizational_unit(
+        self, **kwargs: Any
+    ) -> ot.CreateOrganizationalUnitResponseTypeDef:
         # TODO: Arg type needs to be FakeOrganization, but it can sometimes be None.
         new_ou = FakeOrganizationalUnit(self.org, **kwargs)  # type: ignore[arg-type]
         self.ou.append(new_ou)
         self.attach_policy(PolicyId=utils.DEFAULT_POLICY_ID, TargetId=new_ou.id)
         return {"OrganizationalUnit": new_ou.describe()}
 
-    def update_organizational_unit(self, **kwargs: Any) -> ot.UpdateOrganizationalUnitResponseTypeDef:
+    def update_organizational_unit(
+        self, **kwargs: Any
+    ) -> ot.UpdateOrganizationalUnitResponseTypeDef:
         for ou in self.ou:
             if ou.name == kwargs["Name"]:
                 raise DuplicateOrganizationalUnitException
@@ -473,11 +477,15 @@ class OrganizationsBackend(BaseBackend):
             )
         return parent_id
 
-    def describe_organizational_unit(self, **kwargs: Any) -> ot.DescribeOrganizationalUnitResponseTypeDef:
+    def describe_organizational_unit(
+        self, **kwargs: Any
+    ) -> ot.DescribeOrganizationalUnitResponseTypeDef:
         ou = self._get_organizational_unit_by_id(kwargs["OrganizationalUnitId"])
         return {"OrganizationalUnit": ou.describe()}
 
-    def list_organizational_units_for_parent(self, **kwargs: Any) -> ot.ListOrganizationalUnitsForParentResponseTypeDef:
+    def list_organizational_units_for_parent(
+        self, **kwargs: Any
+    ) -> ot.ListOrganizationalUnitsForParentResponseTypeDef:
         parent_id = self.validate_parent_id(kwargs["ParentId"])
         return dict(
             OrganizationalUnits=[
@@ -539,7 +547,9 @@ class OrganizationsBackend(BaseBackend):
         account = self.get_account_by_id(kwargs["AccountId"])
         return dict(Account=account.describe())
 
-    def describe_create_account_status(self, **kwargs: Any) -> ot.DescribeCreateAccountStatusResponseTypeDef:
+    def describe_create_account_status(
+        self, **kwargs: Any
+    ) -> ot.DescribeCreateAccountStatusResponseTypeDef:
         account = cast(
             FakeAccount,
             self.get_account_by_attr(
@@ -550,7 +560,9 @@ class OrganizationsBackend(BaseBackend):
 
     # TODO: This looks like it implements pagination. That should be handled by
     # the @paginate decorator.
-    def list_create_account_status(self, **kwargs: Any) -> ot.ListCreateAccountStatusResponseTypeDef:
+    def list_create_account_status(
+        self, **kwargs: Any
+    ) -> ot.ListCreateAccountStatusResponseTypeDef:
         requested_states = kwargs.get("States")
         if not requested_states:
             requested_states = ["IN_PROGRESS", "SUCCEEDED", "FAILED"]
@@ -579,7 +591,9 @@ class OrganizationsBackend(BaseBackend):
         accounts = sorted(accounts, key=lambda x: x["JoinedTimestamp"])
         return accounts
 
-    def list_accounts_for_parent(self, **kwargs: Any) -> ot.ListAccountsForParentResponseTypeDef:
+    def list_accounts_for_parent(
+        self, **kwargs: Any
+    ) -> ot.ListAccountsForParentResponseTypeDef:
         parent_id = self.validate_parent_id(kwargs["ParentId"])
         return dict(
             Accounts=[
@@ -698,9 +712,7 @@ class OrganizationsBackend(BaseBackend):
             raise InvalidInputException("You specified an invalid value.")
 
     def list_policies(self) -> ot.ListPoliciesResponseTypeDef:
-        return dict(
-            Policies=[p.describe()["PolicySummary"] for p in self.policies]
-        )
+        return dict(Policies=[p.describe()["PolicySummary"] for p in self.policies])
 
     def delete_policy(self, **kwargs: Any) -> None:
         for idx, policy in enumerate(self.policies):
@@ -717,7 +729,9 @@ class OrganizationsBackend(BaseBackend):
             "We can't find a policy with the PolicyId that you specified.",
         )
 
-    def list_policies_for_target(self, **kwargs: Any) -> ot.ListPoliciesForTargetResponseTypeDef:
+    def list_policies_for_target(
+        self, **kwargs: Any
+    ) -> ot.ListPoliciesForTargetResponseTypeDef:
         _filter = kwargs["Filter"]
         # TODO: The type is any because I can't make sense of the implementation.
         obj: Any
@@ -779,7 +793,9 @@ class OrganizationsBackend(BaseBackend):
 
         return resource
 
-    def list_targets_for_policy(self, **kwargs: Any) -> ot.ListTargetsForPolicyResponseTypeDef:
+    def list_targets_for_policy(
+        self, **kwargs: Any
+    ) -> ot.ListTargetsForPolicyResponseTypeDef:
         if re.compile(utils.POLICY_ID_REGEX).match(kwargs["PolicyId"]):
             policy = next(
                 (p for p in self.policies if p.id == kwargs["PolicyId"]), None
