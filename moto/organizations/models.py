@@ -358,6 +358,7 @@ class FakeDelegatedAdministrator(BaseModel):
 
 Container = Union[FakeOrganizationalUnit, FakeRoot]
 
+
 # TODO: Replace all `*kwargs: Any` with the real names and types of the args
 # accepted. Before doing this find out how the backend is invoked to check
 # compatibility.
@@ -500,7 +501,7 @@ class OrganizationsBackend(BaseBackend):
     # underscore.
     # TODO: This method should either be used consistently by all methods that
     # look up accounts by ID. Or it should be replaced with a dictionary of
-    # account ID [str] to FakeAccount. 
+    # account ID [str] to FakeAccount.
     def get_account_by_id(self, account_id: str) -> FakeAccount:
         account = next(
             (account for account in self.accounts if account.id == account_id), None

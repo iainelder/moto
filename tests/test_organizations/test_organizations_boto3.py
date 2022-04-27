@@ -31,12 +31,14 @@ from .organizations_test_utils import (
     validate_account_closed,
 )
 
+
 @mock_organizations
 @pytest.mark.xfail(reason="fails with AttributeError instead")
 def test_when_no_org_then_create_organizational_unit_fails() -> None:
     client = boto3.client("organizations", region_name="us-east-1")
     with pytest.raises(ClientError):
         client.create_organizational_unit(Name="OU1", ParentId="r-none")
+
 
 @mock_organizations
 def test_create_organization():
