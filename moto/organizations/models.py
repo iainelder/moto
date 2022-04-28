@@ -123,7 +123,7 @@ class FakeAccount(BaseModel):
         }
 
     def list_tags(self) -> List[ot.TagTypeDef]:
-        return [{"Key": k, "Value": v} for k, v in self.tags]
+        return [{"Key": k, "Value": v} for k, v in self.tags.items()]
 
 
 class FakeOrganizationalUnit(BaseModel):
@@ -187,7 +187,7 @@ class FakeRoot(BaseModel):
         }
 
     def list_tags(self) -> List[ot.TagTypeDef]:
-        return [{"Key": k, "Value": v} for k, v in self.tags]
+        return [{"Key": k, "Value": v} for k, v in self.tags.items()]
 
     def add_policy_type(self, policy_type: ol.PolicyTypeType) -> None:
         if policy_type not in self.SUPPORTED_POLICY_TYPES:
