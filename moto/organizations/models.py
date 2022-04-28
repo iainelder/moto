@@ -127,17 +127,22 @@ class FakeAccount(BaseModel):
 
 
 class FakeOrganizationalUnit(BaseModel):
-    def __init__(self, organization: FakeOrganization, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        organization: FakeOrganization,
+        Name: str,
+        ParentId: str,
+        Tags: Optional[List[ot.TagTypeDef]] = None
+    ) -> None:
         self.type: Final = "ORGANIZATIONAL_UNIT"
         self.organization_id = organization.id
         self.master_account_id = organization.master_account_id
         self.id = utils.make_random_ou_id(organization.root_id)
-        self.name = cast(str, kwargs.get("Name"))
-        self.parent_id = cast(str, kwargs.get("ParentId"))
+        self.name = Name
+        self.parent_id = ParentId
         self._arn_format = utils.OU_ARN_FORMAT
         self.attached_policies: List[FakePolicy] = []
-        tags = cast(List[ot.TagTypeDef], kwargs.get("Tags", []))
-        self.tags = {tag["Key"]: tag["Value"] for tag in tags}
+        self.tags = {tag["Key"]: tag["Value"] for tag in Tags} if Tags else {}
 
     @property
     def arn(self) -> str:
@@ -405,9 +410,9 @@ class OrganizationsBackend(BaseBackend):
         return cast(FakeRoot, root)
 
     def create_organization(
-        self, **kwargs: Any
+        self, FeatureSet: ot.OrganizationFeatureSetType
     ) -> ot.CreateOrganizationResponseTypeDef:
-        self.org = FakeOrganization(kwargs["FeatureSet"])
+        self.org = FakeOrganization(FeatureSet)
         root_ou = FakeRoot(self.org)
         self.ou.append(root_ou)
         master_account = FakeAccount(
@@ -451,10 +456,13 @@ class OrganizationsBackend(BaseBackend):
         return dict(Roots=[ou.describe() for ou in self.ou if isinstance(ou, FakeRoot)])
 
     def create_organizational_unit(
-        self, **kwargs: Any
+        self,
+        Name: str,
+        ParentId: str,
+        Tags: Optional[List[ot.TagTypeDef]] = None
     ) -> ot.CreateOrganizationalUnitResponseTypeDef:
         # TODO: Arg type needs to be FakeOrganization, but it can sometimes be None.
-        new_ou = FakeOrganizationalUnit(self.org, **kwargs)  # type: ignore[arg-type]
+        new_ou = FakeOrganizationalUnit(self.org, Name, ParentId, Tags)  # type: ignore[arg-type]
         self.ou.append(new_ou)
         self.attach_policy(PolicyId=utils.DEFAULT_POLICY_ID, TargetId=new_ou.id)
         return {"OrganizationalUnit": new_ou.describe()}
