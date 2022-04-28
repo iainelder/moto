@@ -393,7 +393,8 @@ class OrganizationsBackend(BaseBackend):
         self.accounts: List[FakeAccount] = []
         self.ou: List[Container] = []
         self.policies: List[FakePolicy] = []
-        self.services: List[FakeServiceAccess] = []
+        # TODO: This should be a list of FakeServiceAccess.
+        self.services: List[ot.EnabledServicePrincipalTypeDef] = []
         self.admins: List[FakeDelegatedAdministrator] = []
 
     def _get_root_by_id(self, root_id: str) -> FakeRoot:
@@ -833,12 +834,17 @@ class OrganizationsBackend(BaseBackend):
             raise NotImplementedError("Policy tagging is not implemented")
         return {"Tags": resource.list_tags()}
 
-    def untag_resource(self, **kwargs):
+    def untag_resource(self, **kwargs :Any) -> None:
         resource = self._get_resource_for_tagging(kwargs["ResourceId"])
+        if isinstance(resource, FakePolicy):
+            raise NotImplementedError("Policy tagging is not implemented")
         for key in kwargs["TagKeys"]:
             resource.tags.pop(key, None)
 
-    def enable_aws_service_access(self, **kwargs):
+    # TODO: Refactor all the service access APIs to use FakeServiceAccess for
+    # storage. Only return the EnabledServicePrinicipalTypeDef at the last
+    # possible moment.
+    def enable_aws_service_access(self, **kwargs: Any) -> None:
         service = FakeServiceAccess(**kwargs)
 
         # enabling an existing service results in no changes
@@ -850,10 +856,10 @@ class OrganizationsBackend(BaseBackend):
 
         self.services.append(service.describe())
 
-    def list_aws_service_access_for_organization(self):
+    def list_aws_service_access_for_organization(self) -> ot.ListAWSServiceAccessForOrganizationResponseTypeDef:
         return dict(EnabledServicePrincipals=self.services)
 
-    def disable_aws_service_access(self, **kwargs):
+    def disable_aws_service_access(self, **kwargs: Any) -> None:
         if not FakeServiceAccess.trusted_service(kwargs["ServicePrincipal"]):
             raise InvalidInputException(
                 "You specified an unrecognized service principal."
@@ -871,7 +877,7 @@ class OrganizationsBackend(BaseBackend):
         if service_principal:
             self.services.remove(service_principal)
 
-    def register_delegated_administrator(self, **kwargs):
+    def register_delegated_administrator(self, **kwargs: Any) -> None:
         account_id = kwargs["AccountId"]
 
         if account_id == ACCOUNT_ID:
@@ -890,7 +896,7 @@ class OrganizationsBackend(BaseBackend):
 
         admin.add_service_principal(kwargs["ServicePrincipal"])
 
-    def list_delegated_administrators(self, **kwargs):
+    def list_delegated_administrators(self, **kwargs: Any) -> ot.ListDelegatedAdministratorsResponseTypeDef:
         admins = self.admins
         service = kwargs.get("ServicePrincipal")
 
@@ -906,7 +912,7 @@ class OrganizationsBackend(BaseBackend):
 
         return dict(DelegatedAdministrators=delegated_admins)
 
-    def list_delegated_services_for_account(self, **kwargs):
+    def list_delegated_services_for_account(self, **kwargs: Any) -> ot.ListDelegatedServicesForAccountResponseTypeDef:
         admin = next(
             (admin for admin in self.admins if admin.account.id == kwargs["AccountId"]),
             None,
@@ -929,7 +935,7 @@ class OrganizationsBackend(BaseBackend):
 
         return dict(DelegatedServices=services)
 
-    def deregister_delegated_administrator(self, **kwargs):
+    def deregister_delegated_administrator(self, **kwargs: Any) -> None:
         account_id = kwargs["AccountId"]
         service = kwargs["ServicePrincipal"]
 
@@ -961,21 +967,21 @@ class OrganizationsBackend(BaseBackend):
         if not admin.services:
             self.admins.remove(admin)
 
-    def enable_policy_type(self, **kwargs):
+    def enable_policy_type(self, **kwargs: Any) -> ot.EnablePolicyTypeResponseTypeDef:
         root = self._get_root_by_id(kwargs["RootId"])
 
         root.add_policy_type(kwargs["PolicyType"])
 
         return dict(Root=root.describe())
 
-    def disable_policy_type(self, **kwargs):
+    def disable_policy_type(self, **kwargs: Any) -> ot.DisablePolicyTypeResponseTypeDef:
         root = self._get_root_by_id(kwargs["RootId"])
 
         root.remove_policy_type(kwargs["PolicyType"])
 
         return dict(Root=root.describe())
 
-    def detach_policy(self, **kwargs):
+    def detach_policy(self, **kwargs: Any) -> None:
         policy = self.get_policy_by_id(kwargs["PolicyId"])
         root_id_regex = utils.ROOT_ID_REGEX
         ou_id_regex = utils.OU_ID_REGEX
@@ -1006,7 +1012,7 @@ class OrganizationsBackend(BaseBackend):
         else:
             raise InvalidInputException("You specified an invalid value.")
 
-    def remove_account_from_organization(self, **kwargs):
+    def remove_account_from_organization(self, **kwargs: Any) -> None:
         account = self.get_account_by_id(kwargs["AccountId"])
         for policy in account.attached_policies:
             policy.attachments.remove(account)
