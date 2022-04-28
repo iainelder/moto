@@ -4,14 +4,20 @@ from pytest import fail
 from moto.organizations.models import OrganizationsBackend
 
 
+def test_model_api_exists(api: AnyCallable) -> None:
+    boto3_api = api
+    model_api = cast(
+        AnyCallable, getattr(OrganizationsBackend, boto3_api.__name__, None)
+    )
+    if model_api is None:
+        fail("Model API not implemented")
+
+
 def test_model_returns_none(non_returning_api: AnyCallable) -> None:
     boto3_api = non_returning_api
     model_api = cast(
         AnyCallable, getattr(OrganizationsBackend, boto3_api.__name__, None)
     )
-
-    if model_api is None:
-        fail("Model API not implemented.")
 
     model_return_type = get_return_type(model_api)
     boto3_return_type = get_return_type(boto3_api)
@@ -23,9 +29,6 @@ def test_model_mimics_boto3_api_return_type_name(returning_api: AnyCallable) -> 
     model_api = cast(
         AnyCallable, getattr(OrganizationsBackend, boto3_api.__name__, None)
     )
-
-    if model_api is None:
-        fail("Model API not implemented.")
 
     model_return_type = get_return_type(model_api)
     boto3_return_type = get_return_type(boto3_api)
@@ -39,9 +42,6 @@ def test_model_returns_all_keys_except_response_metadata_and_next_token(
     model_api = cast(
         AnyCallable, getattr(OrganizationsBackend, boto3_api.__name__, None)
     )
-
-    if model_api is None:
-        fail("Model API not implemented.")
 
     model_return_type = get_return_type(model_api)
     boto3_return_type = get_return_type(boto3_api)
