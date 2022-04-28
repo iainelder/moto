@@ -122,6 +122,9 @@ class FakeAccount(BaseModel):
             "JoinedTimestamp": _unix_time_cast_to_datetime(self.create_time),
         }
 
+    def list_tags(self) -> List[ot.TagTypeDef]:
+        return [{"Key": k, "Value": v} for k, v in self.tags]
+
 
 class FakeOrganizationalUnit(BaseModel):
     def __init__(self, organization: FakeOrganization, **kwargs: Any) -> None:
@@ -144,6 +147,9 @@ class FakeOrganizationalUnit(BaseModel):
 
     def describe(self) -> ot.OrganizationalUnitTypeDef:
         return {"Id": self.id, "Arn": self.arn, "Name": self.name}
+
+    def list_tags(self) -> List[ot.TagTypeDef]:
+        return [{"Key": k, "Value": v} for k, v in self.tags.items()]
 
 
 class FakeRoot(BaseModel):
@@ -179,6 +185,9 @@ class FakeRoot(BaseModel):
             "Name": self.name,
             "PolicyTypes": self.policy_types,
         }
+
+    def list_tags(self) -> List[ot.TagTypeDef]:
+        return [{"Key": k, "Value": v} for k, v in self.tags]
 
     def add_policy_type(self, policy_type: ol.PolicyTypeType) -> None:
         if policy_type not in self.SUPPORTED_POLICY_TYPES:
@@ -811,13 +820,18 @@ class OrganizationsBackend(BaseBackend):
 
     def tag_resource(self, **kwargs: Any) -> None:
         resource = self._get_resource_for_tagging(kwargs["ResourceId"])
+        if isinstance(resource, FakePolicy):
+            raise NotImplementedError("Policy tagging is not implemented")
         new_tags = {tag["Key"]: tag["Value"] for tag in kwargs["Tags"]}
         resource.tags.update(new_tags)
 
-    def list_tags_for_resource(self, **kwargs):
+    def list_tags_for_resource(
+        self, **kwargs: Any
+    ) -> ot.ListTagsForResourceResponseTypeDef:
         resource = self._get_resource_for_tagging(kwargs["ResourceId"])
-        tags = [{"Key": key, "Value": value} for key, value in resource.tags.items()]
-        return dict(Tags=tags)
+        if isinstance(resource, FakePolicy):
+            raise NotImplementedError("Policy tagging is not implemented")
+        return {"Tags": resource.list_tags()}
 
     def untag_resource(self, **kwargs):
         resource = self._get_resource_for_tagging(kwargs["ResourceId"])
